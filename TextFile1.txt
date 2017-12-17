@@ -1,39 +1,8 @@
-//  DK 2017.12.17 18:39
 #define _CRT_SECURE_NO_WARNINGS
 #include <algorithm>
 #include <iostream>
 #include <fstream>
-#include <time.h>
-#include <stdio.h>
-#include <time.h>
-#include <string.h>
-
-#include <ivec.h>//MMX  
-#include <fvec.h>//SSE(also include ivec.h)  
-#include <dvec.h>//SSE2(also include fvec.h)  
-
-#include <mmintrin.h> //MMX  
-#include <xmmintrin.h> //SSE(include mmintrin.h)  
-#include <emmintrin.h> //SSE2(include xmmintrin.h)  
-#include <pmmintrin.h> //SSE3(include emmintrin.h)  
-#include <tmmintrin.h>//SSSE3(include pmmintrin.h)  
-#include <smmintrin.h>//SSE4.1(include tmmintrin.h)  
-#include <nmmintrin.h>//SSE4.2(include smmintrin.h)  
-#include <wmmintrin.h>//AES(include nmmintrin.h)  
-#include <immintrin.h>//AVX(include wmmintrin.h)  
-#include <intrin.h>//(include immintrin.h)  
-
 using namespace std;
-#define START 0
-#define FINISH 1
-#define NONE 0
-#define MMX 1
-#define SSE 2
-#define AVX 3
-
-clock_t start = 0;
-clock_t finish = 0;
-int type = NONE;
 
 __int16 inYUV_Y[1920][1080];
 __int16 inYUV_U[1920][1080];
@@ -62,12 +31,11 @@ void RGB2YUV(__int16 * YUV_Y, __int16 * YUV_U, __int16 * YUV_V,
 	__int16 * RGB_R, __int16 * RGB_G, __int16 * RGB_B);
 void WriteYUV(__int16 * outYUV_Y, __int16 * outYUV_U, __int16 * outYUV_V);
 void MIXRGB(int A, __int16 *RGB, __int16 *RGB2);
-
 void MIXRGB_MMX(int A, __int16 *RGB, __int16 *RGB2);
 
 int main()
 {
-	/*
+
 	// part 2
 	char infilename[40] = "./demo/dem1.yuv";
 	char outfilename[40] = "Part2.yuv";
@@ -85,7 +53,7 @@ int main()
 			(__int16 *)RGB_R, (__int16 *)RGB_G, (__int16 *)RGB_B);
 		WriteYUV((__int16 *)outYUV_Y, (__int16 *)outYUV_U, (__int16 *)outYUV_V);
 	}
-	*/
+
 
 	// Part 3
 	char infilename1[40] = "./demo/dem1.yuv";
@@ -96,17 +64,15 @@ int main()
 		(__int16 *)inYUV_U, (__int16 *)inYUV_V);
 	ReadYUV(infilename2, (__int16 *)in2YUV_Y,
 		(__int16 *)in2YUV_U, (__int16 *)in2YUV_V);
-	for (int A = 1; A <= 1; A = A + 3)
+	for (int A = 1; A <= 255; A = A + 3)
 	{
 		YUV2RGB((__int16 *)inYUV_Y, (__int16 *)inYUV_U, (__int16 *)inYUV_V,
 			(__int16 *)RGB_R, (__int16 *)RGB_G, (__int16 *)RGB_B);
 		YUV2RGB((__int16 *)in2YUV_Y, (__int16 *)in2YUV_U, (__int16 *)in2YUV_V,
 			(__int16 *)RGB2_R, (__int16 *)RGB2_G, (__int16 *)RGB2_B);
-		type = MMX;
 		MIXRGB(A, (__int16 *)RGB_R, (__int16 *)RGB2_R);
 		MIXRGB(A, (__int16 *)RGB_G, (__int16 *)RGB2_G);
 		MIXRGB(A, (__int16 *)RGB_B, (__int16 *)RGB2_B);
-		type = NONE;
 		RGB2YUV((__int16 *)outYUV_Y, (__int16 *)outYUV_U, (__int16 *)outYUV_V,
 			(__int16 *)RGB_R, (__int16 *)RGB_G, (__int16 *)RGB_B);
 		WriteYUV((__int16 *)outYUV_Y, (__int16 *)outYUV_U, (__int16 *)outYUV_V);
@@ -269,59 +235,14 @@ void WriteYUV(__int16 * outYUV_Y, __int16 * outYUV_U, __int16 * outYUV_V)
 	}
 }
 
-__int16 NONE_result[1920 * 1080];
 void MIXRGB(int A, __int16 *RGB, __int16 *RGB2)
 {
 	for (int i = 0; i < 1920; i++)
 	{
 		for (int j = 0; j < 1080; j++)
 		{
-			NONE_result[i * 1080 + j] = (RGB[i * 1080 + j] * A + RGB2[i * 1080 + j] * (256 - A)) / 256;			
+			RGB[i * 1080 + j] = (RGB[i * 1080 + j] * A + RGB2[i * 1080 + j] * (256 - A)) / 256;
 		}
-	}
-	if (type == NONE)
-	{
-		for (int i = 0; i < 1920; i++)
-		{
-			for (int j = 0; j < 1080; j++)
-			{
-				RGB[i * 1080 + j] = (RGB[i * 1080 + j] * A + RGB2[i * 1080 + j] * (256 - A)) / 256;
-			}
-		}
-	}
-	else if (type == MMX)
-	{
-		register int i;
-		const int nLoop = 1920 * 1080 / 4;
-		_mm_empty();
-		__m64* pRGB = (__m64*) RGB;
-		__m64* pRGB2 = (__m64*) RGB2;
-		//r0=_S0, r1=_S1, r2=_S2, r3=_S3  
-		__m64 pA = _mm_set_pi16((short)A, (short)A, (short)A, (short)A);
-		__m64 pA2 = _mm_set_pi16((short)(256 - A), (short)(256 - A), (short)(256 - A), (short)(256 - A));
-
-		for (i = 0; i < nLoop; i++, pRGB = pRGB + 1, pRGB2 = pRGB2 + 1)
-		{
-			//Multiplies four 16-bit values in _MM1 by four 16-bit values in _MM2 and produces  
-			//the low 16 bits of the four results  
-			*pRGB = _m_pmullw(*pRGB, pA);//_mm_mullo_pi16  
-			*pRGB2 = _m_pmullw(*pRGB2, pA2);//_mm_mullo_pi16  
-			//Adds the four 16-bit values in _MM1 to the four 16-bit values in _MM2  
-			*pRGB = _m_paddw(*pRGB2, *pRGB);//_mm_add_pi16  	
-		}
-		int count = 0;
-		for (int i = 0; i < 1920; i++)
-		{
-			for (int j = 0; j < 1080; j++)
-			{
-				RGB[i * 1080 + j] = ((uint16_t)RGB[i * 1080 + j]) / 256;
-				if (RGB[i * 1080 + j] != NONE_result[i * 1080 + j])
-				{
-					count++;
-				}
-			}
-		}
-		int countnew = count;
 	}
 }
 void MIXRGB_MMX(int A, __int16 *RGB, __int16 *RGB2)
