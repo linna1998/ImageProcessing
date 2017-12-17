@@ -96,7 +96,7 @@ int main()
 		(__int16 *)inYUV_U, (__int16 *)inYUV_V);
 	ReadYUV(infilename2, (__int16 *)in2YUV_Y,
 		(__int16 *)in2YUV_U, (__int16 *)in2YUV_V);
-	for (int A = 1; A <= 1; A = A + 3)
+	for (int A = 1; A <= 255; A = A + 3)
 	{
 		YUV2RGB((__int16 *)inYUV_Y, (__int16 *)inYUV_U, (__int16 *)inYUV_V,
 			(__int16 *)RGB_R, (__int16 *)RGB_G, (__int16 *)RGB_B);
@@ -289,6 +289,7 @@ void MIXRGB(int A, __int16 *RGB, __int16 *RGB2)
 			}
 		}
 	}
+	/*
 	else if (type == MMX)
 	{
 		register int i;
@@ -310,6 +311,10 @@ void MIXRGB(int A, __int16 *RGB, __int16 *RGB2)
 			*pRGB = _m_paddw(*pRGB2, *pRGB);//_mm_add_pi16  	
 		}
 		int count = 0;
+		// BUG
+		// RGB[i*1080+j] is different from NONE_result[i*1080+j]
+		// if NONE_result[i*1080+j] is larger than 0x0100
+		// then RGB[i*1080+j] will be NONE_result[i*1080+j] - 0x0100
 		for (int i = 0; i < 1920; i++)
 		{
 			for (int j = 0; j < 1080; j++)
@@ -323,6 +328,53 @@ void MIXRGB(int A, __int16 *RGB, __int16 *RGB2)
 		}
 		int countnew = count;
 	}
+	*/
+	else if (type == MMX)
+	{
+		register int i;
+		const int nLoop = 1920 * 1080 / 4;
+		_mm_empty();
+		__m64* pRGB = (__m64*) RGB;
+		__m64* pRGB2 = (__m64*) RGB2;
+		//r0=_S0, r1=_S1, r2=_S2, r3=_S3  
+		__m64 pA = _mm_set_pi16((short)A, (short)A, (short)A, (short)A);
+		__m64 pA2 = _mm_set_pi16((short)(256 - A), (short)(256 - A), (short)(256 - A), (short)(256 - A));
+
+		for (i = 0; i < nLoop; i++, pRGB = pRGB + 1, pRGB2 = pRGB2 + 1)
+		{
+			//Subtracts the four 16-bit values in _MM2 from the four 16-bit values in _MM1  
+			*pRGB2 = _m_psubw(*pRGB2, *pRGB);//_mm_sub_pi16 			
+			//Multiplies four 16-bit values in _MM1 by four 16-bit values in _MM2 and produces  
+			//the low 16 bits of the four results  
+			*pRGB2 = _m_pmullw(*pRGB2, pA);//_mm_mullo_pi16  			
+		}
+		for (int i = 0; i < 1920; i++)
+		{
+			for (int j = 0; j < 1080; j++)
+			{
+				RGB2[i * 1080 + j] = (RGB2[i * 1080 + j]) / 256;
+			}
+		}
+		pRGB = (__m64*) RGB;
+		pRGB2 = (__m64*) RGB2;
+		for (i = 0; i < nLoop; i++, pRGB = pRGB + 1, pRGB2 = pRGB2 + 1)
+		{
+			//Adds the four 16-bit values in _MM1 to the four 16-bit values in _MM2  
+			*pRGB = _m_paddw(*pRGB2, *pRGB);//_mm_add_pi16  			
+		}		
+		int count = 0;
+		for (int i = 0; i < 1920; i++)
+		{
+			for (int j = 0; j < 1080; j++)
+			{
+				if (RGB[i*1080+j] != NONE_result[i * 1080 + j])
+				{
+					count++;
+				}
+			}
+		}
+	}
+	
 }
 void MIXRGB_MMX(int A, __int16 *RGB, __int16 *RGB2)
 {
