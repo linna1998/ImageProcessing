@@ -9,22 +9,24 @@ unsigned char inYUV[1920][1080][3] = { 0 };  //[][][0]:Y [][][1]:U [][][2]:V
 unsigned char in2YUV[1920][1080][3] = { 0 };
 unsigned char outYUV[1920][1080][3] = { 0 };
 
-int RGB[1920][1080][3] = { 0 };  // //[][][0]:R [][][1]:G [][][2]:B
-int RGB2[1920][1080][3] = { 0 };  // //[][][0]:R [][][1]:G [][][2]:B
+__int16 RGB[1920][1080][3] = { 0 };  // //[][][0]:R [][][1]:G [][][2]:B
+__int16 RGB2[1920][1080][3] = { 0 };  // //[][][0]:R [][][1]:G [][][2]:B
 
 void ReadYUV(char * filename, unsigned char * inYUV);
-void YUV2RGB(unsigned char * YUV, int * RGB);
-void RGB2ARGB(int A, int * RGB);
-void RGB2YUV(unsigned char * YUV, int * RGB);
+void YUV2RGB(unsigned char * YUV, __int16 * RGB);
+void RGB2ARGB(int A, __int16 * RGB);
+void RGB2YUV(unsigned char * YUV, __int16 * RGB);
 void WriteYUV(unsigned char * outYUV);
-void MIXRGB(int A, int *RGB, int *RGB2);
+void MIXRGB(int A, __int16 *RGB, __int16 *RGB2);
+void MIXRGB_MMX(int A, __int16 *RGB, __int16 *RGB2);
 
 int main()
 {
+	/*
 	// part 2
 	char infilename[40] = "./demo/dem1.yuv";
 	char outfilename[40] = "Part2.yuv";
-	freopen(outfilename, "wb", stdout);// 重定向标准输出			
+	freopen(outfilename, "wb", stdout);// 重定向标准输出
 	ReadYUV(infilename, (unsigned char *)inYUV);
 	for (int A = 1; A <= 255; A = A + 3)
 	{
@@ -33,7 +35,7 @@ int main()
 		RGB2YUV((unsigned char *)outYUV, (int *)RGB);
 		WriteYUV((unsigned char *)outYUV);
 	}
-
+	*/
 
 	// Part 3
 	char inputfilename1[40] = "./demo/dem1.yuv";
@@ -44,12 +46,13 @@ int main()
 	ReadYUV(inputfilename2, (unsigned char *)in2YUV);
 	for (int A = 1; A <= 255; A = A + 3)
 	{
-		YUV2RGB((unsigned char *)inYUV, (int *)RGB);
-		YUV2RGB((unsigned char *)in2YUV, (int *)RGB2);
-		MIXRGB(A, (int *)RGB, (int *)RGB2);
-		RGB2YUV((unsigned char *)outYUV, (int *)RGB);
+		YUV2RGB((unsigned char *)inYUV, (__int16 *)RGB);
+		YUV2RGB((unsigned char *)in2YUV, (__int16 *)RGB2);
+		MIXRGB(A, (__int16 *)RGB, (__int16 *)RGB2);
+		RGB2YUV((unsigned char *)outYUV, (__int16 *)RGB);
 		WriteYUV((unsigned char *)outYUV);
 	}
+
 	return 0;
 }
 
@@ -75,7 +78,7 @@ void ReadYUV(char * filename, unsigned char * inYUV)
 	}
 }
 
-void YUV2RGB(unsigned char * YUV, int * RGB)
+void YUV2RGB(unsigned char * YUV, __int16 * RGB)
 {
 	for (int i = 0; i < 1920; i++)
 	{
@@ -110,8 +113,24 @@ void YUV2RGB(unsigned char * YUV, int * RGB)
 		}
 	}
 }
+void YUV2RGB_MMX(unsigned char * YUV, __int16 * RGB)
+{
+	for (int i = 0; i < 1920; i++)
+	{
+		for (int j = 0; j < 1080; j++)
+		{
+			RGB[i * 1080 * 3 + j * 3 + 0] = YUV[i * 1080 * 3 + j * 3 + 0]
+				+ 1.140*YUV[(i / 2) * 1080 * 3 + (j / 2) * 3 + 2];
+			RGB[i * 1080 * 3 + j * 3 + 1] = YUV[i * 1080 * 3 + j * 3 + 0]
+				- 0.394*YUV[(i / 2) * 1080 * 3 + (j / 2) * 3 + 1]
+				- 0.581*YUV[(i / 2) * 1080 * 3 + (j / 2) * 3 + 2];
+			RGB[i * 1080 * 3 + j * 3 + 2] = YUV[i * 1080 * 3 + j * 3 + 0]
+				+ 2.032*YUV[(i / 2) * 1080 * 3 + (j / 2) * 3 + 1];
+		}
+	}
+}
 
-void RGB2ARGB(int A, int * RGB)
+void RGB2ARGB(int A, __int16 * RGB)
 {
 	for (int i = 0; i < 1920; i++)
 	{
@@ -125,13 +144,12 @@ void RGB2ARGB(int A, int * RGB)
 	}
 }
 
-void RGB2YUV(unsigned char * YUV, int * RGB)
+void RGB2YUV(unsigned char * YUV, __int16 * RGB)
 {
 	for (int i = 0; i < 1920; i++)
 	{
 		for (int j = 0; j < 1080; j++)
 		{
-
 			YUV[i * 1080 * 3 + j * 3 + 0] = 0.299*RGB[i * 1080 * 3 + j * 3 + 0]
 				+ 0.587*RGB[i * 1080 * 3 + j * 3 + 1] + 0.114*RGB[i * 1080 * 3 + j * 3 + 2];
 			YUV[i * 1080 * 3 + j * 3 + 1] = 0.492*(RGB[i * 1080 * 3 + j * 3 + 2] - YUV[i * 1080 * 3 + j * 3 + 0]);
@@ -179,7 +197,7 @@ void WriteYUV(unsigned char * outYUV)
 	}
 }
 
-void MIXRGB(int A, int *RGB, int *RGB2)
+void MIXRGB(int A, __int16 *RGB, __int16 *RGB2)
 {
 	for (int i = 0; i < 1920; i++)
 	{
@@ -191,6 +209,40 @@ void MIXRGB(int A, int *RGB, int *RGB2)
 			}
 		}
 	}
+}
+void MIXRGB_MMX(int A, __int16 *RGB, __int16 *RGB2)
+{
+	__asm
+	{
+		MOVQ mm0, A
+		MOV esi, 0
+		MOV ecx, 1920 * 1080 * 3 / 2//cx表示循环次数
+		L1:			
+			MOVD mm1, RGB[esi]
+			MOVQ mm1, RGB[esi]
+			MOVD mm2, RGB2[esi]
+
+			PSUBD mm1, mm2
+			PMULHW mm1, mm0
+			//PADDSD mm1, mm2
+			// PACKUSWB mm1, mm3
+			// MOVQ RGB[esi], mm1
+			ADD esi, 2
+			LOOP L1
+			EMMS
+	}
+	/*
+	for (int i = 0; i < 1920; i++)
+	{
+		for (int j = 0; j < 1080; j++)
+		{
+			for (int t = 0; t <= 2; t++)
+			{
+				RGB[i * 1080 * 3 + j * 3 + t] = (RGB[i * 1080 * 3 + j * 3 + t] * A + RGB2[i * 1080 * 3 + j * 3 + t] * (256 - A)) / 256;
+			}
+		}
+	}
+	*/
 }
 //下面的4个函数应该统计出图像处理的时间;
 //函数参数和返回值可以需要自己定.
