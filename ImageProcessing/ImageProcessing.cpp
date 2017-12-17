@@ -63,8 +63,6 @@ void RGB2YUV(__int16 * YUV_Y, __int16 * YUV_U, __int16 * YUV_V,
 void WriteYUV(__int16 * outYUV_Y, __int16 * outYUV_U, __int16 * outYUV_V);
 void MIXRGB(int A, __int16 *RGB, __int16 *RGB2);
 
-void MIXRGB_MMX(int A, __int16 *RGB, __int16 *RGB2);
-
 int main()
 {
 	/*
@@ -102,7 +100,7 @@ int main()
 			(__int16 *)RGB_R, (__int16 *)RGB_G, (__int16 *)RGB_B);
 		YUV2RGB((__int16 *)in2YUV_Y, (__int16 *)in2YUV_U, (__int16 *)in2YUV_V,
 			(__int16 *)RGB2_R, (__int16 *)RGB2_G, (__int16 *)RGB2_B);
-		type = MMX;
+		type = SSE;
 		MIXRGB(A, (__int16 *)RGB_R, (__int16 *)RGB2_R);
 		MIXRGB(A, (__int16 *)RGB_G, (__int16 *)RGB2_G);
 		MIXRGB(A, (__int16 *)RGB_B, (__int16 *)RGB2_B);
@@ -269,9 +267,11 @@ void WriteYUV(__int16 * outYUV_Y, __int16 * outYUV_U, __int16 * outYUV_V)
 	}
 }
 
+// DEBUG
 __int16 NONE_result[1920 * 1080];
 void MIXRGB(int A, __int16 *RGB, __int16 *RGB2)
 {
+	// DEBUG
 	for (int i = 0; i < 1920; i++)
 	{
 		for (int j = 0; j < 1080; j++)
@@ -288,47 +288,7 @@ void MIXRGB(int A, __int16 *RGB, __int16 *RGB2)
 				RGB[i * 1080 + j] = (RGB[i * 1080 + j] * A + RGB2[i * 1080 + j] * (256 - A)) / 256;
 			}
 		}
-	}
-	/*
-	else if (type == MMX)
-	{
-		register int i;
-		const int nLoop = 1920 * 1080 / 4;
-		_mm_empty();
-		__m64* pRGB = (__m64*) RGB;
-		__m64* pRGB2 = (__m64*) RGB2;
-		//r0=_S0, r1=_S1, r2=_S2, r3=_S3  
-		__m64 pA = _mm_set_pi16((short)A, (short)A, (short)A, (short)A);
-		__m64 pA2 = _mm_set_pi16((short)(256 - A), (short)(256 - A), (short)(256 - A), (short)(256 - A));
-
-		for (i = 0; i < nLoop; i++, pRGB = pRGB + 1, pRGB2 = pRGB2 + 1)
-		{
-			//Multiplies four 16-bit values in _MM1 by four 16-bit values in _MM2 and produces  
-			//the low 16 bits of the four results  
-			*pRGB = _m_pmullw(*pRGB, pA);//_mm_mullo_pi16  
-			*pRGB2 = _m_pmullw(*pRGB2, pA2);//_mm_mullo_pi16  
-			//Adds the four 16-bit values in _MM1 to the four 16-bit values in _MM2  
-			*pRGB = _m_paddw(*pRGB2, *pRGB);//_mm_add_pi16  	
-		}
-		int count = 0;
-		// BUG
-		// RGB[i*1080+j] is different from NONE_result[i*1080+j]
-		// if NONE_result[i*1080+j] is larger than 0x0100
-		// then RGB[i*1080+j] will be NONE_result[i*1080+j] - 0x0100
-		for (int i = 0; i < 1920; i++)
-		{
-			for (int j = 0; j < 1080; j++)
-			{
-				RGB[i * 1080 + j] = ((uint16_t)RGB[i * 1080 + j]) / 256;
-				if (RGB[i * 1080 + j] != NONE_result[i * 1080 + j])
-				{
-					count++;
-				}
-			}
-		}
-		int countnew = count;
-	}
-	*/
+	}	
 	else if (type == MMX)
 	{
 		register int i;
@@ -361,54 +321,45 @@ void MIXRGB(int A, __int16 *RGB, __int16 *RGB2)
 		{
 			//Adds the four 16-bit values in _MM1 to the four 16-bit values in _MM2  
 			*pRGB = _m_paddw(*pRGB2, *pRGB);//_mm_add_pi16  			
-		}		
-		int count = 0;
+		}
+	}
+	else if (type == SSE)
+	{
+		register int i;
+		const int nLoop = 1920 * 1080 / 8;
+		_mm_empty();
+		__m128i* pRGB = (__m128i*) RGB;
+		__m128i* pRGB2 = (__m128i*) RGB2;
+		//r0=_S0, r1=_S1, r2=_S2, r3=_S3  
+		__m128i pA = _mm_set_epi16((short)A, (short)A, (short)A, (short)A, 
+			(short)A, (short)A, (short)A, (short)A);
+		__m128i pA2 = _mm_set_epi16((short)(256 - A), (short)(256 - A), (short)(256 - A), (short)(256 - A),
+			(short)(256 - A), (short)(256 - A), (short)(256 - A), (short)(256 - A));
+
+		for (i = 0; i < nLoop; i++, pRGB = pRGB + 1, pRGB2 = pRGB2 + 1)
+		{			
+			*pRGB2 = _mm_sub_epi16(*pRGB2, *pRGB);
+			*pRGB2 = _mm_mullo_epi16(*pRGB2, pA);//_mm_mullo_pi16  			
+		}
 		for (int i = 0; i < 1920; i++)
 		{
 			for (int j = 0; j < 1080; j++)
 			{
-				if (RGB[i*1080+j] != NONE_result[i * 1080 + j])
-				{
-					count++;
-				}
+				RGB2[i * 1080 + j] = (RGB2[i * 1080 + j]) / 256;
 			}
 		}
-	}
-	
-}
-void MIXRGB_MMX(int A, __int16 *RGB, __int16 *RGB2)
-{
-	__asm
-	{
-		MOVQ mm0, A
-		MOV esi, 0
-		MOV ecx, 1920 * 1080 * 3 / 2//cx表示循环次数
-		L1:
-		MOVD mm1, RGB[esi]
-			MOVQ mm1, RGB[esi]
-			MOVD mm2, RGB2[esi]
-
-			PSUBD mm1, mm2
-			PMULHW mm1, mm0
-			//PADDSD mm1, mm2
-			// PACKUSWB mm1, mm3
-			// MOVQ RGB[esi], mm1
-			ADD esi, 2
-			LOOP L1
-			EMMS
-	}
-	/*
-	for (int i = 0; i < 1920; i++)
-	{
-		for (int j = 0; j < 1080; j++)
+		pRGB = (__m128i*) RGB;
+		pRGB2 = (__m128i*) RGB2;
+		for (i = 0; i < nLoop; i++, pRGB = pRGB + 1, pRGB2 = pRGB2 + 1)
 		{
-			for (int t = 0; t <= 2; t++)
-			{
-				RGB[i * 1080 * 3 + j * 3 + t] = (RGB[i * 1080 * 3 + j * 3 + t] * A + RGB2[i * 1080 * 3 + j * 3 + t] * (256 - A)) / 256;
-			}
+			//Adds the four 16-bit values in _MM1 to the four 16-bit values in _MM2  
+			*pRGB = _mm_add_epi16(*pRGB2, *pRGB);//_mm_add_pi16  			
 		}
 	}
-	*/
+	else if (type == AVX)
+	{
+	
+	}
 }
 //下面的4个函数应该统计出图像处理的时间;
 //函数参数和返回值可以需要自己定.
