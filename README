@@ -1,0 +1,6 @@
+源文件全部在ImageProssing.cpp文档中。
+需要在VisualStudio的环境下运行。
+
+若要使用不同的方式，请设置全局变量type分别为NONE, MMX, SSE, AVX。
+
+若要查看程序运行时间，请在double runtime = process_time(FINISH);语句处打断点，并查看runtime的内存结果。
