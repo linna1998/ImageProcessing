@@ -294,6 +294,88 @@ void YUV2RGB(__int16 * YUV_Y, __int16 * YUV_U, __int16 * YUV_V,
 		}
 		_mm_empty();
 	}
+	else 
+	{		
+		for (int i = 0; i < 1920; i++)
+		{
+			for (int j = 0; j < 1080; j++)
+			{
+				TEMP1[i][j] = 1.140*YUV_V[i * 1080 + j];
+				TEMP2[i][j] = -0.394*YUV_U[i * 1080 + j];
+				TEMP3[i][j] = -0.581*YUV_V[i * 1080 + j];
+				TEMP4[i][j] = 2.032*YUV_U[i * 1080 + j];
+			}
+		}
+		// Our DMM instructions		
+		void* pR = (void*)RGB_R;
+		void* pG = (void*)RGB_G;
+		void* pB = (void*)RGB_B;
+		void* p1 = (void*)TEMP1[0];
+		void* p2 = (void*)TEMP2[0];
+		void* p3 = (void*)TEMP3[0];
+		void* p4 = (void*)TEMP4[0];
+
+		void* pY = (void*)YUV_Y;
+		for (int i = 0; i < 1920 * 1080 / 16; i++, pR++, pY++, p1++)
+		{
+			__DMMasm:
+			{
+				mov rax, pR;
+				dmovdma DMM0;
+				mov rax, py;
+				dmovdma DMM1;
+				mov rax, p1;
+				dmovdma DMM2;
+				daddww DMM0, DMM1, DMM2;
+				mov rax, pR;
+				dmovmda DMM0;
+			}			
+		}
+
+		pY = (DMM*)YUV_Y;
+		for (int i = 0; i < 1920 * 1080 / 16; i++, pG++, pY++, p2++, p3++)
+		{		
+		__DMMasm:
+			{
+				mov rax, pG;
+				dmovdma DMM0;
+				mov rax, py;
+				dmovdma DMM1;
+				mov rax, p2;
+				dmovdma DMM2;
+				daddww DMM0, DMM1, DMM2;
+				mov rax, pG;
+				dmovmda DMM0;
+
+				mov rax, pG;
+				dmovdma DMM0;
+				mov rax, pG;
+				dmovdma DMM1;
+				mov rax, p3;
+				dmovdma DMM2;
+				daddww DMM0, DMM1, DMM2;
+				mov rax, pG;
+				dmovmda DMM0;
+			}			
+		}
+
+		pY = (void*)YUV_Y;
+		for (int i = 0; i < 1920 * 1080 / 8; i++, pB++, pY++, p4++)
+		{
+		__DMMasm:
+			{
+				mov rax, pB;
+				dmovdma DMM0;
+				mov rax, py;
+				dmovdma DMM1;
+				mov rax, p4;
+				dmovdma DMM2;
+				daddww DMM0, DMM1, DMM2;
+				mov rax, pB;
+				dmovmda DMM0;
+			}			
+		}		
+	}
 }
 void YUV2RGB_MMX(__int16 * YUV, __int16 * RGB)
 {
